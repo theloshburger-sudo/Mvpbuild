@@ -1,13 +1,15 @@
 # QuoteClean
 
-1-minute estimate cleaner for trades estimators — paste messy takeoff notes, get a bid-ready line list.
+1-minute estimate cleaner for trades estimators who take off in **PlanSwift**, then write quantities by hand or into an **Excel template**.
 
-Student demo (Cal Poly Vibe Coding Club) aimed at the re-key / transpose pain.
+Paste messy pad notes or template rows → bid-ready line list. No re-key / transpose.
+
+Student demo (Cal Poly Vibe Coding Club).
 
 ## Demo (60 seconds)
 
 1. Open the app.
-2. Click **Load sample takeoff** (ugly pad notes on purpose).
+2. Pick **PlanSwift hand notes** or **Excel template**, then load the sample (or paste your own / upload `.csv` / `.xlsx`).
 3. Click **Clean into estimate**.
 4. Change a unit price — totals update.
 5. Download CSV or Print/PDF.
