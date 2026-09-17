@@ -1,108 +1,48 @@
 import { useMemo, useState } from 'react'
+import { parseTakeoff, type Line } from './parseTakeoff'
+import { xlsxToTsv } from './parseXlsx'
+import { SAMPLE_EXCEL, SAMPLE_NOTES } from './samples'
 
-type Line = { qty: number; unit: string; desc: string; price: number }
-
-const SAMPLE = `Kitchen Reno takeoff (messy pad notes)
-- drywall 5/8  42 sheets @ 18.50
-mud + tape 12 buckets 14.00
-2x4x12 studs x 86  4.25
-R13 insulation 28 bags ~32
-paint labor 16 hrs @ 65
-paint 8 gal @ 38
-baseboard 210 lf 1.85
-interior doors 6 @ 145
-door hardware 6 sets 28
-demo dumpster 1 475
-misc fasteners allowance 125
-hang drywall labor 24 hrs 55
-cleanup crew 4 hrs (no rate written)
-NOTE: add 10% waste on drywall sheets — don't transpose 42/24`
-
-const BOOK: Record<string, number> = {
-  drywall: 18.5, mud: 14, stud: 4.25, insulation: 32, paint: 38,
-  labor: 55, baseboard: 1.85, door: 145, hardware: 28, dumpster: 475,
-  cleanup: 55, fastener: 125,
-}
-
-function guessPrice(desc: string) {
-  const d = desc.toLowerCase()
-  for (const [k, v] of Object.entries(BOOK)) if (d.includes(k)) return v
-  if (/hr|labor|crew/.test(d)) return 55
-  return 0
-}
-
-function parseTakeoff(text: string): Line[] {
-  const lines: Line[] = []
-  for (const raw of text.split(/\n/)) {
-    let line = raw.replace(/^[-*•]\s*/, '').trim()
-    if (!line || /^(note:|kitchen|takeoff)/i.test(line)) continue
-
-    let m = line.match(/(.+?)\s+(\d+(?:\.\d+)?)\s*(sheets?|bags?|buckets?|sets?|hrs?|hours|lf|gal|ea|each|pcs)?\s*(?:@|at)\s*\$?(\d+(?:\.\d+)?)/i)
-    if (m) {
-      lines.push({ desc: m[1].trim(), qty: +m[2], unit: norm(m[3] || 'ea'), price: +m[4] })
-      continue
-    }
-    m = line.match(/(.+?)\s+x\s*(\d+)\s*\$?(\d+(?:\.\d+)?)?/i)
-    if (m) {
-      lines.push({ desc: m[1].trim(), qty: +m[2], unit: 'ea', price: m[3] ? +m[3] : guessPrice(m[1]) })
-      continue
-    }
-    m = line.match(/(.+?)\s+(\d+(?:\.\d+)?)\s*(sheets?|bags?|buckets?|sets?|hrs?|hours|lf|gal|ea|each|pcs)\b(?:\s*[~@]?\s*\$?(\d+(?:\.\d+)?)(?:\/\w+)?)?/i)
-    if (m) {
-      lines.push({ desc: m[1].trim(), qty: +m[2], unit: norm(m[3]), price: m[4] ? +m[4] : guessPrice(m[1]) })
-      continue
-    }
-    m = line.match(/(.+?)\s+(\d+(?:\.\d+)?)\s*$/)
-    if (m) {
-      const n = +m[2]
-      if (/allowance|misc|fastener|dumpster/i.test(m[1]) || n >= 50) {
-        lines.push({ desc: m[1].trim(), qty: 1, unit: 'ls', price: n })
-      } else {
-        lines.push({ desc: m[1].trim(), qty: n, unit: 'ea', price: guessPrice(m[1]) })
-      }
-      continue
-    }
-    if (/waste|cleanup/i.test(line)) {
-      lines.push({ desc: line, qty: 1, unit: 'ls', price: guessPrice(line) })
-    }
-  }
-
-  // drywall waste 10% of sheet stock if mentioned in notes
-  if (/10%\s*waste|waste.*drywall|drywall.*waste/i.test(text)) {
-    const dw = lines.filter((l) => /drywall|sheetrock/i.test(l.desc) && /sheet/i.test(l.unit))
-    const material = dw.reduce((s, l) => s + l.qty * l.price, 0)
-    if (material > 0) lines.push({ qty: 1, unit: 'ls', desc: 'Drywall waste allowance (10%)', price: +(material * 0.1).toFixed(2) })
-  }
-  return lines
-}
-
-function norm(u: string) {
-  u = (u || 'ea').toLowerCase()
-  if (/sheet/.test(u)) return 'sheets'
-  if (/hr/.test(u)) return 'hrs'
-  if (/bag/.test(u)) return 'bags'
-  if (/bucket/.test(u)) return 'buckets'
-  if (/set/.test(u)) return 'sets'
-  if (/each|ea|pcs/.test(u)) return 'ea'
-  return u
-}
+type InputMode = 'notes' | 'excel'
 
 function money(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 }
 
 export default function App() {
-  const [raw, setRaw] = useState(SAMPLE)
+  const [mode, setMode] = useState<InputMode>('notes')
+  const [raw, setRaw] = useState(SAMPLE_NOTES)
   const [rows, setRows] = useState<Line[] | null>(null)
   const [taxOn, setTaxOn] = useState(false)
   const [taxRate, setTaxRate] = useState(7.75)
+  const [fileLabel, setFileLabel] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const sub = useMemo(() => (rows || []).reduce((s, r) => s + r.qty * r.price, 0), [rows])
   const tax = taxOn ? sub * (taxRate / 100) : 0
   const total = sub + tax
+  const sample = mode === 'notes' ? SAMPLE_NOTES : SAMPLE_EXCEL
+
+  function switchMode(next: InputMode) {
+    setMode(next)
+    setNotice(null)
+    setRows(null)
+    if (raw === SAMPLE_NOTES || raw === SAMPLE_EXCEL || raw.trim() === '') {
+      setRaw(next === 'notes' ? SAMPLE_NOTES : SAMPLE_EXCEL)
+      setFileLabel(null)
+    }
+  }
 
   function clean() {
+    setNotice(null)
     setRows(parseTakeoff(raw))
+  }
+
+  function loadSample() {
+    setRaw(sample)
+    setFileLabel(null)
+    setNotice(null)
+    setRows(null)
   }
 
   function update(i: number, field: keyof Line, value: string) {
@@ -113,6 +53,29 @@ export default function App() {
       return { ...r, [field]: value }
     })
     setRows(next)
+  }
+
+  async function onFile(file: File | undefined) {
+    if (!file) return
+    const name = file.name.toLowerCase()
+    try {
+      if (name.endsWith('.xls') && !name.endsWith('.xlsx')) {
+        throw new Error('Old .xls isn’t supported. Save the Excel template as .xlsx or .csv, or copy the used range and paste.')
+      }
+      let text: string
+      if (name.endsWith('.xlsx')) {
+        text = xlsxToTsv(await file.arrayBuffer())
+      } else {
+        text = stripBom(await file.text())
+      }
+      setRaw(text)
+      setMode('excel')
+      setFileLabel(file.name)
+      setNotice(null)
+      setRows(null)
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Could not read that file.')
+    }
   }
 
   function downloadCsv() {
@@ -132,24 +95,56 @@ export default function App() {
     <div style={{ maxWidth: 1080, margin: '0 auto', padding: '28px 18px 64px' }}>
       <div style={badge}>Cal Poly · Vibe Coding Club · student demo for estimators</div>
       <h1 style={{ margin: '14px 0 8px', letterSpacing: '-0.02em', fontSize: 'clamp(1.6rem, 3vw, 2.2rem)' }}>
-        Turn messy takeoff notes into a clean estimate
+        PlanSwift takeoff → clean estimate — no re-key
       </h1>
-      <p style={{ color: '#8b9bb0', maxWidth: '62ch' }}>
-        Built for the re-key / transpose grind — paste rough pad notes, get a bid-ready line list in about a minute.
-        No login. Demo for estimators tired of typing every line twice.
+      <p style={{ color: '#8b9bb0', maxWidth: '68ch' }}>
+        Built for offices that take off in PlanSwift, then write quantities by hand or drop them into an Excel template.
+        Paste the pad notes or the template rows. Get a bid-ready line list without transposing every takeoff.
       </p>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 16, marginTop: 22 }}>
         <section style={card}>
-          <h2 style={h2}>1. Paste messy notes</h2>
+          <h2 style={h2}>1. Takeoff input</h2>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+            <button type="button" style={mode === 'notes' ? tabOn : tabOff} onClick={() => switchMode('notes')}>
+              PlanSwift hand notes
+            </button>
+            <button type="button" style={mode === 'excel' ? tabOn : tabOff} onClick={() => switchMode('excel')}>
+              Excel template
+            </button>
+          </div>
+          <p style={{ color: '#8b9bb0', fontSize: 13, margin: '0 0 10px' }}>
+            {mode === 'notes'
+              ? 'Type or paste what you wrote while taking off in PlanSwift — counts, LF/SF, missing rates, waste notes.'
+              : 'Paste rows copied from the Excel template (tabs or CSV). Or upload the .csv / .xlsx the office already uses.'}
+          </p>
           <textarea
             value={raw}
-            onChange={(e) => setRaw(e.target.value)}
+            onChange={(e) => { setRaw(e.target.value); setFileLabel(null) }}
             style={ta}
+            wrap="off"
             spellCheck={false}
+            aria-label={mode === 'notes' ? 'PlanSwift hand notes' : 'Excel template rows'}
           />
-          <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
-            <button type="button" style={ghost} onClick={() => setRaw(SAMPLE)}>Load sample takeoff</button>
+          {fileLabel && (
+            <div style={{ color: '#3dd6c6', fontSize: 12, marginTop: 8 }}>Loaded {fileLabel}</div>
+          )}
+          {notice && (
+            <div style={{ color: '#f0a4a4', fontSize: 13, marginTop: 8 }}>{notice}</div>
+          )}
+          <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button type="button" style={ghost} onClick={loadSample}>
+              {mode === 'notes' ? 'Load sample hand notes' : 'Load sample Excel template'}
+            </button>
+            <label style={{ ...ghost, display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}>
+              Upload .csv / .xlsx
+              <input
+                type="file"
+                accept=".csv,.tsv,.txt,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                style={{ display: 'none' }}
+                onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = '' }}
+              />
+            </label>
             <button type="button" style={primary} onClick={clean}>Clean into estimate</button>
           </div>
         </section>
@@ -157,11 +152,13 @@ export default function App() {
         <section style={card}>
           <h2 style={h2}>2. Clean estimate {rows ? <span style={{ color: '#5dd39e' }}>· {rows.length} lines</span> : null}</h2>
           {!rows ? (
-            <div style={{ color: '#8b9bb0', padding: '48px 8px', textAlign: 'center' }}>Your cleaned line items show up here.</div>
+            <div style={{ color: '#8b9bb0', padding: '48px 8px', textAlign: 'center' }}>
+              Line items from the takeoff notes or Excel template show up here.
+            </div>
           ) : (
             <>
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <table style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
                     <tr>
                       {['Qty', 'Unit', 'Description', 'Unit $', 'Total'].map((h) => (
@@ -174,7 +171,7 @@ export default function App() {
                       <tr key={i}>
                         <td style={td}><input style={inpR} value={r.qty} onChange={(e) => update(i, 'qty', e.target.value)} /></td>
                         <td style={td}><input style={inp} value={r.unit} onChange={(e) => update(i, 'unit', e.target.value)} /></td>
-                        <td style={td}><input style={inp} value={r.desc} onChange={(e) => update(i, 'desc', e.target.value)} /></td>
+                        <td style={{ ...td, minWidth: 168 }}><input style={inp} value={r.desc} onChange={(e) => update(i, 'desc', e.target.value)} title={r.desc} /></td>
                         <td style={td}><input style={inpR} value={r.price} onChange={(e) => update(i, 'price', e.target.value)} /></td>
                         <td style={{ ...td, textAlign: 'right', color: '#cfe7ff' }}>{money(r.qty * r.price)}</td>
                       </tr>
@@ -200,12 +197,16 @@ export default function App() {
         </section>
       </div>
 
-      <p style={{ marginTop: 22, color: '#8b9bb0', fontSize: 13, maxWidth: '70ch' }}>
-        Student MVP by Milo — validating a 1-minute quote cleaner for trades estimators.
-        60-sec demo: Load sample → Clean into estimate → tweak a price → export CSV.
+      <p style={{ marginTop: 22, color: '#8b9bb0', fontSize: 13, maxWidth: '72ch' }}>
+        Student MVP by Milo — PlanSwift takeoff notes or the office Excel template, cleaned in about a minute.
+        Demo: Hand notes or Excel template → Clean into estimate → tweak a price → export CSV.
       </p>
     </div>
   )
+}
+
+function stripBom(s: string) {
+  return s.replace(/^\uFEFF/, '')
 }
 
 const badge: React.CSSProperties = {
@@ -221,9 +222,12 @@ const h2: React.CSSProperties = { margin: '0 0 10px', fontSize: 12, color: '#8b9
 const ta: React.CSSProperties = {
   width: '100%', minHeight: 280, resize: 'vertical', background: '#232d3a', color: '#e8eef5',
   border: '1px solid #2c3848', borderRadius: 12, padding: 14, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13,
+  whiteSpace: 'pre', overflowX: 'auto',
 }
 const primary: React.CSSProperties = { border: 0, borderRadius: 10, padding: '11px 16px', fontWeight: 600, cursor: 'pointer', background: 'linear-gradient(135deg,#3dd6c6,#2bb3c4)', color: '#06201d' }
 const ghost: React.CSSProperties = { borderRadius: 10, padding: '11px 16px', fontWeight: 600, cursor: 'pointer', background: 'transparent', color: '#e8eef5', border: '1px solid #2c3848' }
+const tabOn: React.CSSProperties = { ...ghost, borderColor: '#3dd6c6', color: '#3dd6c6' }
+const tabOff: React.CSSProperties = ghost
 const th: React.CSSProperties = { padding: '10px 8px', borderBottom: '1px solid #2c3848', color: '#8b9bb0', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em' }
 const td: React.CSSProperties = { padding: '6px 4px', borderBottom: '1px solid #2c3848' }
 const inp: React.CSSProperties = { width: '100%', background: 'transparent', border: '1px solid transparent', color: '#e8eef5', borderRadius: 6, padding: '6px 8px' }
