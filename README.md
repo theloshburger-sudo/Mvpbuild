@@ -1,18 +1,19 @@
 # QuoteClean
 
-1-minute estimate cleaner for trades estimators who take off in **PlanSwift**, then write quantities by hand or into an **Excel template**.
+Stop re-keying PlanSwift takeoff into Excel. Stop transposing qty and price.
 
-Paste messy pad notes or template rows → bid-ready line list. No re-key / transpose.
+Offices take off in **PlanSwift**, then write quantities by hand or into an **Excel template**. QuoteClean turns that dump into estimate line items you can export — descriptions, qty, and UOM already filled. Not a PlanSwift plugin.
 
 Student demo (Cal Poly Vibe Coding Club).
 
 ## Demo (60 seconds)
 
-1. Open the app.
-2. Pick **PlanSwift hand notes** or **Excel template**, then load the sample (or paste your own / upload `.csv` / `.xlsx`).
-3. Click **Clean into estimate**.
-4. Change a unit price — totals update.
-5. Download CSV or Print/PDF.
+1. Open the app (defaults to a PlanSwift-style takeoff export).
+2. Confirm the column map — Qty vs Unit Price must not swap. Try **Preview a Qty/Price transpose** to see the warnings.
+3. **Lock columns & build estimate**.
+4. **Export to Excel** (or CSV) — Item, Description, Qty, UOM, Unit Price, Total, Notes. Drop into the office template without retyping lines.
+
+Also try **Hand notes** and **Excel template** (Unit Price sits before Qty on purpose).
 
 ## Local
 
