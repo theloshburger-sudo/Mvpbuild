@@ -26,6 +26,7 @@ export default function App() {
   function switchMode(next: InputMode) {
     setMode(next)
     setNotice(null)
+    setRows(null)
     if (raw === SAMPLE_NOTES || raw === SAMPLE_EXCEL || raw.trim() === '') {
       setRaw(next === 'notes' ? SAMPLE_NOTES : SAMPLE_EXCEL)
       setFileLabel(null)
@@ -121,6 +122,7 @@ export default function App() {
             value={raw}
             onChange={(e) => { setRaw(e.target.value); setFileLabel(null) }}
             style={ta}
+            wrap="off"
             spellCheck={false}
             aria-label={mode === 'notes' ? 'PlanSwift hand notes' : 'Excel template rows'}
           />
@@ -156,7 +158,7 @@ export default function App() {
           ) : (
             <>
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <table style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
                     <tr>
                       {['Qty', 'Unit', 'Description', 'Unit $', 'Total'].map((h) => (
@@ -169,7 +171,7 @@ export default function App() {
                       <tr key={i}>
                         <td style={td}><input style={inpR} value={r.qty} onChange={(e) => update(i, 'qty', e.target.value)} /></td>
                         <td style={td}><input style={inp} value={r.unit} onChange={(e) => update(i, 'unit', e.target.value)} /></td>
-                        <td style={td}><input style={inp} value={r.desc} onChange={(e) => update(i, 'desc', e.target.value)} /></td>
+                        <td style={{ ...td, minWidth: 168 }}><input style={inp} value={r.desc} onChange={(e) => update(i, 'desc', e.target.value)} title={r.desc} /></td>
                         <td style={td}><input style={inpR} value={r.price} onChange={(e) => update(i, 'price', e.target.value)} /></td>
                         <td style={{ ...td, textAlign: 'right', color: '#cfe7ff' }}>{money(r.qty * r.price)}</td>
                       </tr>
@@ -220,6 +222,7 @@ const h2: React.CSSProperties = { margin: '0 0 10px', fontSize: 12, color: '#8b9
 const ta: React.CSSProperties = {
   width: '100%', minHeight: 280, resize: 'vertical', background: '#232d3a', color: '#e8eef5',
   border: '1px solid #2c3848', borderRadius: 12, padding: 14, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13,
+  whiteSpace: 'pre', overflowX: 'auto',
 }
 const primary: React.CSSProperties = { border: 0, borderRadius: 10, padding: '11px 16px', fontWeight: 600, cursor: 'pointer', background: 'linear-gradient(135deg,#3dd6c6,#2bb3c4)', color: '#06201d' }
 const ghost: React.CSSProperties = { borderRadius: 10, padding: '11px 16px', fontWeight: 600, cursor: 'pointer', background: 'transparent', color: '#e8eef5', border: '1px solid #2c3848' }
