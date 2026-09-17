@@ -1,0 +1,11 @@
+:root {
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  color: #e8eef5;
+  background: #0f1419;
+  line-height: 1.45;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background:
+  radial-gradient(1000px 500px at 0% -10%, #16343c, transparent),
+  radial-gradient(800px 400px at 100% 0%, #182338, transparent), #0f1419; }
+button, input, textarea { font: inherit; }
