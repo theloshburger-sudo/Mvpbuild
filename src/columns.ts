@@ -6,9 +6,20 @@ const UNIT_WORDS = /^(sheets?|sht|bags?|buckets?|bkt|sets?|hrs?|hours|hr|lf|sf|s
 
 export function parseNum(s: string): number | null {
   if (!s) return null
-  const t = s.replace(/[$,\s]/g, '').replace(/~$/, '')
+  let t = s.trim().replace(/^\uFEFF/, '').replace(/~/g, '')
+  const withUnit = t.match(/^\$?\s*\(?(-?[\d.,\s]+)\)?\s*([A-Za-z/%]+)?$/)
+  if (withUnit?.[1]) t = withUnit[1]
+  t = t.replace(/[$\s]/g, '')
+  if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(t)) t = t.replace(/,/g, '')
+  else if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(t)) t = t.replace(/\./g, '').replace(',', '.')
+  t = t.replace(/[()]/g, '')
   if (!t || !/^-?\d+(\.\d+)?$/.test(t)) return null
   return Number(t)
+}
+
+function unitHint(raw: string): string {
+  const m = raw.trim().match(/^\$?\s*\(?-?[\d.,\s]+\)?\s+([A-Za-z/%]+)$/)
+  return m?.[1] ?? ''
 }
 
 export function looksLikeMoney(raw: string): boolean {
@@ -61,7 +72,9 @@ export function parseTable(text: string): TableData | null {
   const lines = nonemptyLines(text)
   if (lines.length < 2) return null
   const delim = detectDelim(lines)
-  const rows = lines.map((l) => splitDelimitedLine(stripBom(l), delim))
+  const rows = lines
+    .map((l) => splitDelimitedLine(stripBom(l), delim))
+    .filter((r) => r.some((c) => c.trim()))
   const width = rows.reduce((m, r) => Math.max(m, r.length), 0)
   if (width < 3) return null
   const padded = rows.map((r) => {
@@ -69,26 +82,16 @@ export function parseTable(text: string): TableData | null {
     while (next.length < width) next.push('')
     return next
   })
-  const hasHeader = firstRowIsHeader(padded[0]!)
-  const headers = hasHeader
-    ? padded[0]!.map((h, i) => h || `Column ${colLetter(i)}`)
-    : padded[0]!.map((_, i) => `Column ${colLetter(i)}`)
-  const body = hasHeader ? padded.slice(1) : padded
+  const headerAt = padded.findIndex((r, i) => i < 15 && rowLooksLikeHeader(r))
+  const hasHeader = headerAt >= 0
+  const head = hasHeader ? padded[headerAt]! : padded[0]!
+  const headers = head.map((h, i) => h || `Column ${colLetter(i)}`)
+  const body = hasHeader ? padded.slice(headerAt + 1) : padded
   return { headers, body, hasHeader }
 }
 
 export function looksTabular(text: string): boolean {
-  return parseTable(text) != null && (countTabs(text) >= 2 || headerish(text))
-}
-
-function countTabs(text: string) {
-  const lines = nonemptyLines(text).slice(0, 8)
-  return lines.filter((l) => (l.match(/\t/g) || []).length >= 2).length
-}
-
-function headerish(text: string) {
-  const first = nonemptyLines(text)[0]?.toLowerCase() ?? ''
-  return /[,;]/.test(first) && /(qty|quantity|description|desc|uom|unit|item|name|takeoff)/.test(first)
+  return parseTable(text) != null
 }
 
 export function suggestRoles(headers: string[], body: string[][]): ColRole[] {
@@ -233,13 +236,14 @@ export function rowsToLines(body: string[][], roles: ColRole[]): Line[] {
 
     const qtyRaw = qtyAt >= 0 ? cols[qtyAt] ?? '' : ''
     const priceRaw = priceAt >= 0 ? cols[priceAt] ?? '' : ''
-    const unitRaw = unitAt >= 0 ? cols[unitAt] ?? '' : ''
+    const unitRaw = (unitAt >= 0 ? cols[unitAt] ?? '' : '') || unitHint(qtyRaw)
     const sheet = sheetAt >= 0 ? (cols[sheetAt] ?? '').trim() : ''
     const noteRaw = notesAt >= 0 ? (cols[notesAt] ?? '').trim() : ''
     const qty = parseNum(qtyRaw)
     const priceParsed = parseNum(priceRaw)
     const sourceTotal = totalAt >= 0 ? parseNum(cols[totalAt] ?? '') : null
-    if (qty == null && !unitRaw && priceParsed == null) continue
+    if ((qty == null || qty === 0) && !unitRaw && priceParsed == null) continue
+    if (qty === 0 && priceParsed == null) continue
 
     const notes = [sheet && /^[A-Z]?\d/i.test(sheet) ? `PS ${sheet}` : sheet, noteRaw]
       .filter(Boolean)
@@ -285,17 +289,38 @@ function rowWarnings(line: Line, qtyRaw: string, priceRaw: string): string[] {
 }
 
 function roleFromHeader(h: string): ColRole {
-  const x = h.toLowerCase().replace(/[^a-z0-9$]+/g, ' ').trim()
+  const x = h.toLowerCase().replace(/^\uFEFF/, '').replace(/[^a-z0-9$]+/g, ' ').trim()
   if (!x) return 'ignore'
-  if (/^(item|#|no|num|number|line|code)$/.test(x) || /^item (no|num|number|#)/.test(x)) return 'item'
-  if (/^(type|folder|layer|drawing|properties|prop)$/.test(x)) return 'ignore'
-  if (/(^| )(ext|extended|amount)( |$)/.test(x) || /^(total|ext cost|extended cost)$/.test(x)) return 'total'
-  if (/qty|quantity/.test(x) || /^(takeoff|result)$/.test(x) || x === 'count') return 'qty'
-  if (/takeoff/.test(x)) return 'qty'
-  if (/^(uom|um|units?)$/.test(x) || /^unit(s| of measure)?$/.test(x)) return 'unit'
-  if (/price|rate|unit \$|unit cost/.test(x) || /^(cost)$/.test(x)) return 'price'
-  if (/^(name|item name|description|desc|material|work|scope)$/.test(x) || /desc/.test(x)) return 'desc'
-  if (/^(page|page name|sheet|drawing no)$/.test(x) || /page name/.test(x)) return 'sheet'
+  if (/^(color|colour|markup|markup %|hidden|visible|type|folder|folder path|properties|prop|layer)$/.test(x)) {
+    return 'ignore'
+  }
+  if (
+    /^(item|#|item #|item no|item num|item number|line|line no|line number|code)$/.test(x)
+    || /^item (no|num|number|#)$/.test(x)
+  ) return 'item'
+  if (
+    /^(ext|extended|amount|total|price total|markup total|ext cost|ext price|extended cost|extended price)$/.test(x)
+    || /\b(ext|extended) (cost|price|total)\b/.test(x)
+  ) return 'total'
+  if (/qty 2|qty2|quantity 2/.test(x)) return 'ignore'
+  if (
+    /^(qty|qty 1|qty1|quantity|takeoff|takeoff qty|takeoff quantity|result|count|value|takeoff value|digitizer value)$/.test(x)
+    || (/qty|quantity/.test(x) && !/price|cost|total|ext/.test(x))
+    || (/takeoff/.test(x) && !/item|name/.test(x))
+  ) return 'qty'
+  if (/^(uom|um|unit|units|unit of measure)$/.test(x)) return 'unit'
+  if (
+    /^(unit cost|unit price|unit \$|cost each|price each|rate|cost)$/.test(x)
+    || /unit (cost|price)/.test(x)
+    || /cost each|price each/.test(x)
+    || (/price|rate/.test(x) && !/total/.test(x))
+  ) return 'price'
+  if (
+    /^(name|item name|description|desc|digitizer item|takeoff item|material|work|scope)$/.test(x)
+    || /digitizer/.test(x)
+    || (/desc/.test(x) && !/^item$/.test(x))
+  ) return 'desc'
+  if (/^(page|page name|sheet|drawing|drawing no|drawing name)$/.test(x) || /page name/.test(x)) return 'sheet'
   if (/note|comment/.test(x)) return 'notes'
   return 'ignore'
 }
@@ -347,11 +372,24 @@ function fillRole(roles: ColRole[], taken: Set<ColRole>, role: ColRole, scores: 
   }
 }
 
-function firstRowIsHeader(row: string[]): boolean {
-  const joined = row.join(' ').toLowerCase()
-  if (/qty|quantity|description|desc|uom|unit|item|name|takeoff|price|folder/.test(joined)) return true
-  const nums = row.filter((c) => parseNum(c) != null).length
-  return nums <= Math.max(1, row.length / 3)
+function rowLooksLikeHeader(row: string[]): boolean {
+  const filled = row.filter((c) => c.trim())
+  if (filled.length < 3) return false
+  const joined = filled.join(' ').toLowerCase()
+  const hits = [
+    /qty|quantity|qty\s*1|\bvalue\b/,
+    /digitizer item|item name|description|\bdesc\b/,
+    /\buom\b|\bunits?\b/,
+    /unit cost|unit price|cost each|price each/,
+    /\bpage\b|\bsheet\b|\bdrawing\b/,
+    /\bitem\b/,
+    /\bname\b/,
+    /\btakeoff\b/,
+    /\bfolder\b/,
+  ].filter((re) => re.test(joined)).length
+  if (hits >= 2 || /digitizer item/.test(joined)) return true
+  const nums = filled.filter((c) => parseNum(c) != null).length
+  return nums <= Math.max(1, filled.length / 3) && hits >= 1
 }
 
 function isSkipRow(cols: string[], descAt: number) {
@@ -360,6 +398,7 @@ function isSkipRow(cols: string[], descAt: number) {
   if (/^(note:|notes?|total|subtotal|grand total)$/i.test(desc)) return true
   if (/^note:/i.test(desc)) return true
   if (/^item$|^#+$/i.test(desc)) return true
+  if (/^(page|digitizer item|item name|item number|folder path|cost each)$/i.test(desc)) return true
   return false
 }
 
@@ -378,11 +417,32 @@ function stripBom(s: string) {
 }
 
 function detectDelim(lines: string[]): string {
-  const first = stripBom(lines[0] ?? '')
-  if (first.includes('\t')) return '\t'
-  const commas = (first.match(/,/g) || []).length
-  const semis = (first.match(/;/g) || []).length
-  return semis > commas ? ';' : ','
+  const delims = ['\t', ',', ';', '|'] as const
+  let best = { d: ',', n: -1 }
+  for (const line of lines.slice(0, 15)) {
+    const t = stripBom(line)
+    const headerish = /qty|quantity|digitizer|item name|description|uom|units|unit cost|unit price|cost each|page|takeoff|folder/i.test(t)
+    for (const d of delims) {
+      const n = d === '\t' ? (t.match(/\t/g) || []).length : countUnquoted(t, d)
+      const score = n + (headerish && n >= 2 ? 12 : 0)
+      if (score > best.n) best = { d, n: score }
+    }
+  }
+  return best.d
+}
+
+function countUnquoted(line: string, delim: string): number {
+  let n = 0
+  let inQ = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === '"') {
+      inQ = !inQ
+      continue
+    }
+    if (ch === delim && !inQ) n++
+  }
+  return n
 }
 
 function colLetter(i: number) {
