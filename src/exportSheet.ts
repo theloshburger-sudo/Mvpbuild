@@ -58,8 +58,8 @@ function estimateSheetXml(
   rows.push(rowXml(1, [
     { ref: 'A1', t: 's', s: 1, v: 'QuoteClean estimate — from PlanSwift takeoff. Not re-keyed.' },
     { ref: 'G1', t: 's', s: 5, v: dateLabel },
-  ]))
-  rows.push(rowXml(2, HEADERS.map((h, i) => ({ ref: `${colLetter(i)}2`, t: 's', s: 2, v: h }))))
+  ], 24))
+  rows.push(rowXml(2, HEADERS.map((h, i) => ({ ref: `${colLetter(i)}2`, t: 's', s: 2, v: h })), 18))
   lines.forEach((l, idx) => {
     const r = idx + 3
     rows.push(rowXml(r, [
@@ -88,9 +88,18 @@ function estimateSheetXml(
     { ref: `G${grandRow}`, t: 's', s: 5, v: 'Confirm Qty vs Unit Price before pasting into the office template' },
   ]))
 
+  const lastData = 2 + lines.length
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<sheetViews><sheetView tabSelected="1" workbookViewId="0"><pane ySplit="2" topLeftCell="A3" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>
+<dimension ref="A1:G${grandRow}"/>
+<sheetViews>
+<sheetView tabSelected="1" workbookViewId="0">
+<pane ySplit="2" topLeftCell="A3" activePane="bottomLeft" state="frozen"/>
+<selection pane="bottomLeft" activeCell="A3" sqref="A3"/>
+</sheetView>
+</sheetViews>
+<sheetFormatPr defaultRowHeight="16"/>
 <cols>
 <col min="1" max="1" width="8" customWidth="1"/>
 <col min="2" max="2" width="44" customWidth="1"/>
@@ -101,7 +110,11 @@ function estimateSheetXml(
 <col min="7" max="7" width="42" customWidth="1"/>
 </cols>
 <sheetData>${rows.join('')}</sheetData>
+<autoFilter ref="A2:G${Math.max(2, lastData)}"/>
 <mergeCells count="1"><mergeCell ref="A1:F1"/></mergeCells>
+<printOptions horizontalCentered="0"/>
+<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>
+<pageSetup paperSize="1" orientation="landscape" fitToWidth="1" fitToHeight="1"/>
 </worksheet>`
 }
 
@@ -128,19 +141,23 @@ function guideSheetXml(dateLabel: string): string {
   )
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<dimension ref="A1:B${Math.max(1, lines.length)}"/>
+<sheetFormatPr defaultRowHeight="16"/>
 <cols><col min="1" max="1" width="110" customWidth="1"/><col min="2" max="2" width="16" customWidth="1"/></cols>
 <sheetData>${rowXmls.join('')}</sheetData>
+<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>
 </worksheet>`
 }
 
 type Cell = { ref: string; t: 's' | 'n'; s: number; v: string | number }
 
-function rowXml(r: number, cells: Cell[]): string {
+function rowXml(r: number, cells: Cell[], height?: number): string {
   const inner = cells.map((c) => {
     if (c.t === 'n') return `<c r="${c.ref}" s="${c.s}"><v>${c.v}</v></c>`
     return `<c r="${c.ref}" s="${c.s}" t="inlineStr"><is><t>${xml(String(c.v))}</t></is></c>`
   }).join('')
-  return `<row r="${r}">${inner}</row>`
+  const ht = height != null ? ` ht="${height}" customHeight="1"` : ''
+  return `<row r="${r}"${ht}>${inner}</row>`
 }
 
 function csvCell(v: string) {
@@ -185,10 +202,14 @@ const RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 
 const WORKBOOK = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<bookViews><workbookView xWindow="240" yWindow="120" windowWidth="24000" windowHeight="14000" activeTab="0"/></bookViews>
 <sheets>
 <sheet name="Estimate" sheetId="1" r:id="rId1"/>
 <sheet name="Paste guide" sheetId="2" r:id="rId2"/>
 </sheets>
+<definedNames>
+<definedName name="_xlnm.Print_Titles">Estimate!$2:$2</definedName>
+</definedNames>
 </workbook>`
 
 const WB_RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
