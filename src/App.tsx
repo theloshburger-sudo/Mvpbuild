@@ -9,7 +9,7 @@ import {
 import { linesToCsv, linesToXlsx } from './exportSheet'
 import { parseTakeoff } from './parseTakeoff'
 import { xlsxToTsv } from './parseXlsx'
-import { SAMPLE_EXCEL, SAMPLE_NOTES, SAMPLE_PLANSWIFT } from './samples'
+import { SAMPLE_EXCEL, SAMPLE_ESTIMATING, SAMPLE_EXPORT_BY_PAGE, SAMPLE_NOTES, SAMPLE_PLANSWIFT, ALL_SAMPLE_TEXTS } from './samples'
 import type { ColRole, Line } from './types'
 import { ROLE_LABEL } from './types'
 
@@ -63,7 +63,7 @@ export default function App() {
 
   function switchMode(next: InputMode) {
     const sample = SAMPLES[next]
-    if (raw === SAMPLE_NOTES || raw === SAMPLE_EXCEL || raw === SAMPLE_PLANSWIFT || raw.trim() === '') {
+    if (ALL_SAMPLE_TEXTS.includes(raw) || raw.trim() === '') {
       applyRaw(sample, next)
     } else {
       setMode(next)
@@ -146,10 +146,10 @@ export default function App() {
     if (!rows) return
     const totals = { sub, tax, total, taxOn }
     if (kind === 'csv') {
-      triggerDownload(linesToCsv(rows, totals), 'text/csv', 'quoteclean-estimate.csv')
+      triggerDownload(linesToCsv(rows, totals, { dateLabel: todayLabel() }), 'text/csv', 'quoteclean-estimate.csv')
       return
     }
-    const bytes = linesToXlsx(rows, totals)
+    const bytes = linesToXlsx(rows, totals, { dateLabel: todayLabel() })
     triggerDownload(new Uint8Array(bytes), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'quoteclean-estimate.xlsx')
   }
 
@@ -184,7 +184,7 @@ export default function App() {
             <button type="button" style={mode === 'excel' ? tabOn : tabOff} onClick={() => switchMode('excel')}>Excel template</button>
           </div>
           <p style={{ color: '#8b9bb0', fontSize: 13, margin: '0 0 10px' }}>
-            {mode === 'planswift' && 'Paste or upload a PlanSwift-style takeoff dump — counts, linear, areas, assembly, sheet (A2.1). Prices often live on the estimate, not the takeoff.'}
+            {mode === 'planswift' && 'Paste or upload a PlanSwift-style takeoff dump — Export by Page, Estimating layout, or CSV/XLSX. Confirm Qty vs Unit $; this is not a PlanSwift plugin.'}
             {mode === 'notes' && 'Type what you wrote on the pad while taking off in PlanSwift. No columns to swap — still check Qty vs Unit $ on the right before export.'}
             {mode === 'excel' && 'Paste rows copied from the office template (tabs or CSV) or upload the .csv / .xlsx. Unit Price often sits next to Qty — confirm the map so they do not swap.'}
           </p>
@@ -202,6 +202,16 @@ export default function App() {
             <button type="button" style={ghost} onClick={loadSample}>
               {mode === 'planswift' ? 'Load PlanSwift sample' : mode === 'notes' ? 'Load sample hand notes' : 'Load sample Excel template'}
             </button>
+            {mode === 'planswift' && (
+              <>
+                <button type="button" style={ghost} onClick={() => applyRaw(SAMPLE_EXPORT_BY_PAGE, 'planswift')}>
+                  Example: Export by Page
+                </button>
+                <button type="button" style={ghost} onClick={() => applyRaw(SAMPLE_ESTIMATING, 'planswift')}>
+                  Example: Estimating layout
+                </button>
+              </>
+            )}
             <label style={{ ...ghost, display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}>
               Upload .csv / .xlsx
               <input
@@ -212,6 +222,11 @@ export default function App() {
               />
             </label>
           </div>
+          {mode === 'planswift' && (
+            <p style={{ color: '#8b9bb0', fontSize: 12, margin: '8px 0 0' }}>
+              Example formats follow public PlanSwift Export by Page / Estimating Excel layouts — not a live plugin dump.
+            </p>
+          )}
 
           {table && roles.length > 0 && (
             <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid #2c3848' }}>
@@ -384,6 +399,10 @@ function triggerDownload(data: BlobPart, type: string, name: string) {
   a.href = URL.createObjectURL(new Blob([data], { type }))
   a.download = name
   a.click()
+}
+
+function todayLabel() {
+  return new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 function stripBom(s: string) {
