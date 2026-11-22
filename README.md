@@ -1,31 +1,36 @@
-# QuoteClean
+# Psych
 
-Stop re-keying PlanSwift takeoff into Excel. Stop transposing qty and price.
+A bluffing trivia game for phones. Everyone gets a weird question, writes a fake answer that sounds real, then votes on which answer is true. Built for 3+ players, no accounts, no app install.
 
-Offices take off in **PlanSwift**, then write quantities by hand or into an **Excel template**. QuoteClean turns that dump into estimate line items you can export — descriptions, qty, and UOM already filled. Not a PlanSwift plugin.
+## How to play
 
-Student demo (Cal Poly Vibe Coding Club).
+1. One person opens the site and taps **Start a new room**. Everyone else opens the same site (or the shared invite link) and enters the 4-letter code.
+2. Each round: write a fake answer, then vote for the one you think is real.
+3. **+2** for picking the truth, **+1** for every player your fake fools. Identical fakes are merged, and both authors get credit.
 
-## Demo (60 seconds)
+## Extras
 
-1. Open the app (defaults to a PlanSwift-style takeoff export).
-2. Confirm the column map — Qty vs Unit Price must not swap. Try **Preview a Qty/Price transpose** to see the warnings.
-3. **Lock columns & build estimate**.
-4. **Export to Excel** (or CSV) — Item, Description, Qty, UOM, Unit Price, Total, Notes. Drop into the office template without retyping lines. The workbook has a frozen header, number formats, totals, and a **Paste guide** sheet.
+- **Your own questions:** anyone can add up to 10 private questions in the lobby (about themselves or anything they know). When yours comes up you write a fake too but sit out the vote.
+- **AI questions:** the host can paste their own Anthropic API key and a theme to have Claude write fresh questions. The key stays on the host's phone and calls the API directly from the browser.
+- **Timer:** optional 45/60/90 seconds to write, 30 seconds to vote.
+- **Sound and haptics:** synthesized effects with a mute button; the reveal plays out one answer at a time with the truth last.
 
-Also try **Hand notes**, **Excel template** (Unit Price before Qty), and the labeled example formats:
-- **Export by Page** — Page / Digitizer Item / Item Number / Value / Units / Color ([ConstructConnect help](https://help.constructconnect.com/plugins-adding-functionality-to-planswift-54/planswift-export-by-page-plugin-1687))
-- **Estimating layout** — Item Name / Folder Path / Cost Each / Qty / Price Total, as used in PlanSwift→Excel handoffs ([UDA troubleshooting notes](https://constructconnect-help.atlassian.net/wiki/spaces/PSUPPORT/pages/48693673/Trouble+Shooting+UDA+Construction+Suite+Integration+with+PlanSwift+9.x))
+The host's phone runs the game (peer-to-peer over WebRTC via [PeerJS](https://peerjs.com/)), so the host should keep the tab open. Guests who refresh or drop out rejoin automatically.
 
-Those samples are example formats from public docs, not official plugin dumps. Estimating/Report exports follow whatever columns the office made visible.
-
-## Local
+## Local dev
 
 ```bash
 npm install
 npm run dev
+node test/engine.test.ts   # game rules
 ```
+
+Open `http://127.0.0.1:5173/Mvpbuild/?mem` in several tabs of the same browser to test without WebRTC (`?mem` syncs tabs through BroadcastChannel).
+
+## Adding questions
+
+Edit `src/game/questions.ts`. Each entry is `{ prompt, answer }`; the real answer should be short.
 
 ## GitHub Pages
 
-Live after Actions deploy: https://theloshburger-sudo.github.io/Mvpbuild/
+Deploys from `main` via Actions: https://theloshburger-sudo.github.io/Mvpbuild/
