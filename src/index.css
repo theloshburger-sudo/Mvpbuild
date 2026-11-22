@@ -1,11 +1,313 @@
 :root {
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-  color: #e8eef5;
-  background: #0f1419;
-  line-height: 1.45;
+  --bg: #14121f;
+  --card: #1f1c33;
+  --card-2: #2a2645;
+  --text: #f4f2ff;
+  --muted: #9b97b8;
+  --accent: #ffb547;
+  --accent-text: #2a1a00;
+  --good: #4cd6a0;
+  --bad: #ff6b81;
+  --radius: 16px;
+  color-scheme: dark;
 }
-* { box-sizing: border-box; }
-body { margin: 0; min-height: 100vh; background:
-  radial-gradient(1000px 500px at 0% -10%, #16343c, transparent),
-  radial-gradient(800px 400px at 100% 0%, #182338, transparent), #0f1419; }
-button, input, textarea { font: inherit; }
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 17px/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  min-height: 100dvh;
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.logo {
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+}
+
+h1 {
+  font-size: 30px;
+  line-height: 1.1;
+  margin: 0;
+}
+
+h2.prompt {
+  font-size: 22px;
+  line-height: 1.25;
+  margin: 0;
+  text-align: center;
+}
+
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.center {
+  text-align: center;
+}
+
+.right {
+  text-align: right;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 14px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 2px solid var(--card-2);
+  border-radius: 12px;
+  padding: 12px 14px;
+  width: 100%;
+  resize: none;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.code-input {
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  font-weight: 700;
+  text-align: center;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.primary,
+.secondary {
+  border: 0;
+  border-radius: 14px;
+  padding: 15px 18px;
+  font-weight: 700;
+  width: 100%;
+}
+
+.primary {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.secondary {
+  background: var(--card-2);
+  color: var(--text);
+}
+
+.link {
+  background: none;
+  border: 0;
+  color: var(--accent);
+  padding: 6px;
+  font-size: 15px;
+}
+
+.or {
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.error {
+  color: var(--bad);
+  text-align: center;
+  margin-top: 12px;
+}
+
+.banner {
+  background: var(--card-2);
+  border-radius: 10px;
+  padding: 8px 12px;
+  text-align: center;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.bigcode {
+  font-size: 56px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  padding-left: 0.15em;
+  color: var(--accent);
+}
+
+.players,
+.chips,
+.scores,
+.gains {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.players li {
+  background: var(--card-2);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.tag {
+  font-size: 12px;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 99px;
+  padding: 1px 8px;
+  margin-left: 8px;
+  align-self: center;
+}
+
+.roundbar {
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.chip {
+  background: var(--card-2);
+  color: var(--muted);
+  border-radius: 99px;
+  padding: 4px 12px;
+  font-size: 14px;
+}
+
+.chip.done {
+  color: var(--good);
+}
+
+.option {
+  text-align: left;
+  background: var(--card-2);
+  color: var(--text);
+  border: 2px solid transparent;
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.option.chosen {
+  border-color: var(--accent);
+}
+
+.row {
+  background: var(--card-2);
+  border-radius: 14px;
+  padding: 14px 16px;
+  border: 2px solid transparent;
+}
+
+.row.truth {
+  border-color: var(--good);
+}
+
+.rowtext {
+  font-weight: 600;
+}
+
+.rowmeta {
+  color: var(--muted);
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+.row.truth .rowmeta strong {
+  color: var(--good);
+}
+
+.gains {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.gains strong {
+  color: var(--good);
+}
+
+.scores li {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--card-2);
+}
+
+.scores li.me span {
+  color: var(--accent);
+}
+
+.winner {
+  font-size: 40px;
+  font-weight: 800;
+  color: var(--accent);
+}
