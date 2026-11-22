@@ -72,3 +72,55 @@ g.backToLobby()
 assert.equal(g.phase, 'lobby')
 assert.equal(g.start(), null)
 console.log('engine ok')
+
+// ---------- custom questions + timer ----------
+{
+  let t = 0
+  const g2 = new Game('WXYZ', 'a', Math.random, () => t)
+  g2.join('a', 'Ann'); g2.join('b', 'Ben'); g2.join('c', 'Cat')
+  g2.setRounds(5)
+  g2.setTimer(45)
+  assert.equal(g2.addCustom('b', 'What is Ben scared of?', 'Geese'), null)
+  assert.match(g2.addCustom('b', '', 'x') ?? '', /both/)
+  assert.equal(g2.view('b').myCustoms.length, 1)
+  assert.equal(g2.view('a').myCustoms.length, 0) // others can't see it
+  g2.addAi([{ prompt: 'AI q?', answer: 'AI a' }])
+  assert.equal(g2.start(), null)
+  let sawCustom = false
+  let sawAi = false
+  for (let i = 0; i < 5; i++) {
+    const v = g2.view('a')
+    assert.equal(v.phase, 'answering')
+    assert.equal(v.msLeft, 45000)
+    if (v.prompt === 'AI q?') sawAi = true
+    if (v.askedBy === 'Ben') {
+      sawCustom = true
+      assert.equal(g2.view('b').iAsked, true)
+      g2.submitAnswer('a', 'Spiders'); g2.submitAnswer('b', 'Clowns'); g2.submitAnswer('c', 'Bees')
+      assert.equal(g2.phase, 'voting')
+      assert.match(g2.vote('b', 'o0') ?? '', /sit this vote out/)
+      const pick = (p: string) => g2.view(p).options!.find((o) => !g2.view(p).myOptions!.includes(o.id))!.id
+      g2.vote('a', pick('a')); g2.vote('c', pick('c'))
+      assert.equal(g2.phase, 'reveal') // Ben's vote not needed
+    } else {
+      // Nobody answers; timer expires → straight to reveal
+      t += 44999
+      assert.equal(g2.tick(), false)
+      t += 1
+      assert.equal(g2.tick(), true)
+      assert.equal(g2.phase, 'reveal')
+    }
+    g2.advance()
+  }
+  assert.ok(sawCustom && sawAi)
+  assert.equal(g2.phase, 'final')
+  // voting timer
+  g2.backToLobby(); g2.start()
+  g2.submitAnswer('a', 'q1'); g2.submitAnswer('b', 'q2'); g2.submitAnswer('c', 'q3')
+  assert.equal(g2.phase, 'voting')
+  assert.equal(g2.view('a').msLeft, 30000)
+  t += 30000
+  assert.equal(g2.tick(), true)
+  assert.equal(g2.phase, 'reveal')
+}
+console.log('custom + timer ok')

@@ -311,3 +311,208 @@ button:disabled {
   font-weight: 800;
   color: var(--accent);
 }
+
+/* ---------- v2 additions ---------- */
+
+h3 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.icon {
+  background: none;
+  border: 0;
+  font-size: 20px;
+  padding: 6px;
+}
+
+.row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.players li span {
+  display: flex;
+  align-items: center;
+}
+
+.hint {
+  background: var(--card-2);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 0;
+  font-size: 15px;
+}
+
+.good {
+  color: var(--good);
+}
+
+.customs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.customs li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  border-top: 1px solid var(--card-2);
+}
+
+details.ai summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+}
+
+details.ai summary::-webkit-details-marker {
+  display: none;
+}
+
+details.ai[open] summary {
+  margin-bottom: 12px;
+}
+
+.chip.away {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+.roundbar .tag {
+  margin-left: 6px;
+}
+
+.timer {
+  position: relative;
+  height: 26px;
+  border-radius: 99px;
+  background: var(--card-2);
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.timer-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent);
+  opacity: 0.35;
+  transition: width 0.2s linear;
+}
+
+.timer span {
+  position: relative;
+}
+
+.timer.urgent .timer-fill {
+  background: var(--bad);
+  opacity: 0.6;
+}
+
+.timer.urgent span {
+  animation: pulse 0.5s ease-in-out infinite alternate;
+}
+
+.trophy {
+  font-size: 64px;
+  animation: bounce 1s ease-in-out infinite alternate;
+}
+
+/* animations */
+.pop {
+  animation: pop 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.slide {
+  animation: slide 0.35s ease-out both;
+}
+
+.rise {
+  animation: rise 0.35s ease-out both;
+}
+
+.flip {
+  animation: flip 0.45s cubic-bezier(0.2, 1.2, 0.4, 1) both;
+}
+
+.row.truth.flip {
+  animation:
+    flip 0.45s cubic-bezier(0.2, 1.2, 0.4, 1) both,
+    glow 1.2s ease-in-out 0.4s 2;
+}
+
+.option:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes slide {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@keyframes flip {
+  from {
+    opacity: 0;
+    transform: perspective(600px) rotateX(-80deg);
+  }
+}
+
+@keyframes glow {
+  50% {
+    box-shadow: 0 0 24px rgba(76, 214, 160, 0.6);
+  }
+}
+
+@keyframes pulse {
+  to {
+    transform: scale(1.15);
+  }
+}
+
+@keyframes bounce {
+  to {
+    transform: translateY(-8px) rotate(4deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

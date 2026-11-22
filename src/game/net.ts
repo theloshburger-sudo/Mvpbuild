@@ -5,6 +5,8 @@ export type ClientMsg =
   | { t: 'join'; pid: string; name: string }
   | { t: 'answer'; text: string }
   | { t: 'vote'; option: string }
+  | { t: 'addCustom'; prompt: string; answer: string }
+  | { t: 'removeCustom'; id: string }
 
 export type ServerMsg = { t: 'view'; view: View } | { t: 'error'; msg: string }
 
@@ -51,6 +53,10 @@ async function openPeerHost(h: HostHandlers): Promise<HostNet> {
           reject(e)
         })
       })
+      // Rejoining the matchmaking server keeps the room joinable; open games are unaffected.
+      peer.on('disconnected', () => {
+        if (!peer.destroyed) setTimeout(() => !peer.destroyed && peer.reconnect(), 1000)
+      })
       const conns = new Map<string, DataConnection>()
       peer.on('connection', (c) => {
         c.on('open', () => {
@@ -72,7 +78,9 @@ async function openPeerHost(h: HostHandlers): Promise<HostNet> {
         close: () => peer.destroy(),
       }
     } catch (e) {
-      if ((e as { type?: string }).type !== 'unavailable-id') throw e
+      if ((e as { type?: string }).type !== 'unavailable-id') {
+        throw new Error("Couldn't reach the game server. Check your internet and try again.")
+      }
     }
   }
   throw new Error('Could not reserve a room code. Try again.')

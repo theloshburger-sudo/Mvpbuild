@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Game, type View } from './engine.ts'
-import {
-  openClient,
-  openHost,
-  isMemoryNet,
-  type ClientNet,
-  type ClientMsg,
-  type HostNet,
-} from './net.ts'
+import { generateQuestions } from './ai.ts'
+import { openClient, openHost, isMemoryNet, type ClientNet, type ClientMsg, type HostNet } from './net.ts'
 
 export type Status = 'idle' | 'connecting' | 'online' | 'reconnecting'
 type Role = 'host' | 'client'
+
+/** View plus a deadline converted to this device's clock. */
+export type LocalView = View & { deadlineAt?: number }
 
 const store = () => (isMemoryNet() ? sessionStorage : localStorage)
 const read = (k: string) => {
@@ -38,10 +35,53 @@ function getPid() {
   return pid
 }
 
+// The host's phone runs the game, so stop its screen from sleeping mid-round.
+let wakeLock: { release(): Promise<void> } | null = null
+function keepAwake() {
+  const nav = navigator as Navigator & { wakeLock?: { request(t: 'screen'): Promise<{ release(): Promise<void> }> } }
+  if (!nav.wakeLock) return
+  const grab = () => {
+    if (document.visibilityState !== 'visible') return
+    nav.wakeLock!.request('screen').then(
+      (l) => (wakeLock = l),
+      () => {},
+    )
+  }
+  grab()
+  document.addEventListener('visibilitychange', grab)
+}
+function releaseAwake() {
+  void wakeLock?.release().catch(() => {})
+  wakeLock = null
+}
+
+const localize = (v: View): LocalView => ({
+  ...v,
+  deadlineAt: v.msLeft === undefined ? undefined : Date.now() + v.msLeft,
+})
+
+/** Apply a player's message to the game. Returns an error to show that player, if any. */
+function apply(g: Game, pid: string, msg: ClientMsg): string | null {
+  switch (msg.t) {
+    case 'answer':
+      return g.submitAnswer(pid, msg.text)
+    case 'vote':
+      return g.vote(pid, msg.option)
+    case 'addCustom':
+      return g.addCustom(pid, msg.prompt, msg.answer)
+    case 'removeCustom':
+      g.removeCustom(pid, msg.id)
+      return null
+    case 'join':
+      return null
+  }
+}
+
 export function useSession() {
-  const [view, setView] = useState<View | null>(null)
+  const [view, setView] = useState<LocalView | null>(null)
   const [status, setStatus] = useState<Status>('idle')
   const [error, setError] = useState<string | null>(null)
+  const [aiBusy, setAiBusy] = useState(false)
 
   const role = useRef<Role | null>(null)
   const pid = useRef(getPid())
@@ -51,6 +91,7 @@ export function useSession() {
   const conns = useRef(new Map<string, string>()) // connection id -> pid
   const last = useRef<{ code: string; name: string } | null>(null)
   const retry = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const ticker = useRef<ReturnType<typeof setInterval> | null>(null)
   const resumed = useRef(false)
 
   // ---------- host ----------
@@ -58,7 +99,7 @@ export function useSession() {
   const publish = useCallback(() => {
     const g = game.current
     if (!g) return
-    setView(g.view(pid.current))
+    setView(localize(g.view(pid.current)))
     for (const [conn, p] of conns.current) hostNet.current?.send(conn, { t: 'view', view: g.view(p) })
   }, [])
 
@@ -81,14 +122,14 @@ export function useSession() {
           onMsg: (conn, msg: ClientMsg) => {
             const g = game.current
             if (!g) return
-            let err: string | null = null
+            let err: string | null
             if (msg.t === 'join') {
               err = g.join(msg.pid, msg.name)
               if (!err) conns.current.set(conn, msg.pid)
             } else {
               const p = conns.current.get(conn)
               if (!p) return
-              err = msg.t === 'answer' ? g.submitAnswer(p, msg.text) : g.vote(p, msg.option)
+              err = apply(g, p, msg)
             }
             if (err) hostNet.current?.send(conn, { t: 'error', msg: err })
             publish()
@@ -99,6 +140,10 @@ export function useSession() {
         const g = new Game(net.code, pid.current)
         g.join(pid.current, name)
         game.current = g
+        keepAwake()
+        ticker.current = setInterval(() => {
+          if (game.current?.tick()) publish()
+        }, 250)
         setStatus('online')
         publish()
       } catch (e) {
@@ -116,7 +161,7 @@ export function useSession() {
     const net = await openClient(code, {
       onMsg: (m) => {
         if (m.t === 'view') {
-          setView(m.view)
+          setView(localize(m.view))
           setError(null)
         } else setError(m.msg)
       },
@@ -179,7 +224,7 @@ export function useSession() {
       setError(null)
       const g = game.current
       if (role.current === 'host' && g) {
-        const err = msg.t === 'answer' ? g.submitAnswer(pid.current, msg.text) : msg.t === 'vote' ? g.vote(pid.current, msg.option) : null
+        const err = apply(g, pid.current, msg)
         if (err) setError(err)
         publish()
       } else clientNet.current?.send(msg)
@@ -198,8 +243,29 @@ export function useSession() {
     [publish],
   )
 
+  const generate = useCallback(
+    async (apiKey: string, theme: string, count: number) => {
+      setError(null)
+      setAiBusy(true)
+      try {
+        const qs = await generateQuestions(apiKey, theme, count)
+        game.current?.addAi(qs)
+        publish()
+        return qs.length
+      } catch (e) {
+        setError((e as Error).message)
+        return 0
+      } finally {
+        setAiBusy(false)
+      }
+    },
+    [publish],
+  )
+
   const leave = useCallback(() => {
     if (retry.current) clearTimeout(retry.current)
+    if (ticker.current) clearInterval(ticker.current)
+    releaseAwake()
     hostNet.current?.close()
     clientNet.current?.close()
     hostNet.current = clientNet.current = null
@@ -217,14 +283,19 @@ export function useSession() {
     view,
     status,
     error,
+    aiBusy,
     createRoom,
     joinRoom,
     leave,
+    generate,
     answer: (text: string) => send({ t: 'answer', text }),
     vote: (option: string) => send({ t: 'vote', option }),
+    addCustom: (prompt: string, answer: string) => send({ t: 'addCustom', prompt, answer }),
+    removeCustom: (id: string) => send({ t: 'removeCustom', id }),
     start: () => hostDo((g) => g.start()),
     advance: () => hostDo((g) => g.advance()),
     setRounds: (n: number) => hostDo((g) => g.setRounds(n)),
+    setTimer: (n: number) => hostDo((g) => g.setTimer(n)),
     playAgain: () => hostDo((g) => g.backToLobby()),
   }
 }

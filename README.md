@@ -8,6 +8,13 @@ A bluffing trivia game for phones. Everyone gets a weird question, writes a fake
 2. Each round: write a fake answer, then vote for the one you think is real.
 3. **+2** for picking the truth, **+1** for every player your fake fools. Identical fakes are merged, and both authors get credit.
 
+## Extras
+
+- **Your own questions:** anyone can add up to 10 private questions in the lobby (about themselves or anything they know). When yours comes up you write a fake too but sit out the vote.
+- **AI questions:** the host can paste their own Anthropic API key and a theme to have Claude write fresh questions. The key stays on the host's phone and calls the API directly from the browser.
+- **Timer:** optional 45/60/90 seconds to write, 30 seconds to vote.
+- **Sound and haptics:** synthesized effects with a mute button; the reveal plays out one answer at a time with the truth last.
+
 The host's phone runs the game (peer-to-peer over WebRTC via [PeerJS](https://peerjs.com/)), so the host should keep the tab open. Guests who refresh or drop out rejoin automatically.
 
 ## Local dev
